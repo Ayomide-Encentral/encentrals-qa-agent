@@ -1,0 +1,22 @@
+{
+  "name": "encentrals-qa-agent",
+  "version": "1.0.0",
+  "description": "QA Testing Agent for Encentrals",
+  "main": "api/webhook.js",
+  "scripts": {
+    "start": "node api/webhook.js",
+    "dev": "nodemon api/webhook.js"
+  },
+  "dependencies": {
+    "octokit": "^2.0.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "body-parser": "^1.20.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
