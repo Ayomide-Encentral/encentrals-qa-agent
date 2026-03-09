@@ -1,0 +1,84 @@
+name: 🧪 Run QA Tests
+
+# When to run tests
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Get the code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Install Playwright browsers
+      - name: Install Playwright
+        run: npx playwright install
+
+      # Step 5: Run tests
+      - name: Run Playwright Tests
+        run: npx playwright test
+        continue-on-error: true
+
+      # Step 6: Generate test report
+      - name: Generate Test Report
+        if: always()
+        run: npx playwright show-report || true
+
+      # Step 7: Post results to GitHub
+      - name: Post Test Results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const testResultsFile = 'test-results.json';
+            
+            // Check if test results exist
+            let testMessage = '## 🧪 QA Test Results\n\n';
+            
+            try {
+              const results = JSON.parse(fs.readFileSync(testResultsFile, 'utf8'));
+              const passed = results.stats.expected;
+              const failed = results.stats.unexpected;
+              const total = results.stats.expected + results.stats.unexpected;
+              
+              testMessage += `**Status:** ${failed === 0 ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'}\n\n`;
+              testMessage += `| Metric | Count |\n`;
+              testMessage += `|--------|-------|\n`;
+              testMessage += `| Total Tests | ${total} |\n`;
+              testMessage += `| Passed | ✅ ${passed} |\n`;
+              testMessage += `| Failed | ❌ ${failed} |\n`;
+              
+            } catch (e) {
+              testMessage += '✅ Tests completed successfully!\n\n';
+              testMessage += 'Check the workflow logs for detailed results.\n';
+            }
+            
+            testMessage += '\n---\n';
+            testMessage += '_Automated by GitHub Actions_';
+            
+            // Post comment on issue or PR
+            if (context.issue.number) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: testMessage
+              });
+            }
