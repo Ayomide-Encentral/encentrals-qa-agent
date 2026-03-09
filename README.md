@@ -1,4 +1,4 @@
-# Encentrals QA Agent
+# Encentrals QA agent
 
 This repository contains the QA Agent framework.
 
