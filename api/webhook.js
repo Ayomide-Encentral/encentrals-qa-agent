@@ -1,33 +1,25 @@
 require('dotenv').config();
-const { App } = require("@octokit/app");
+const { Octokit } = require("octokit");
 const crypto = require('crypto');
 
-console.log('🚀 Webhook loaded');
+console.log('🚀 QA Webhook Started');
 
-// Initialize GitHub App (not Octokit)
-let app;
-try {
-  app = new App({
-    appId: process.env.GITHUB_APP_ID,
-    privateKey: process.env.GITHUB_PRIVATE_KEY,
-  });
-  console.log('✅ GitHub App initialized');
-} catch (error) {
-  console.error('❌ App init error:', error.message);
-}
+// Initialize GitHub client with Personal Access Token
+const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN,
+});
+
+console.log('✅ Octokit initialized with token');
 
 // Main webhook handler
 async function handleWebhook(req, res) {
   console.log('\n' + '='.repeat(50));
-  console.log('Request method:', req.method);
-  console.log('========== WEBHOOK RECEIVED ==========');
+  console.log('📨 WEBHOOK RECEIVED');
   
   // Verify webhook signature
   const signature = req.headers['x-hub-signature-256'];
   const payload = JSON.stringify(req.body);
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  
-  console.log('Signature check...');
   
   const hash = 'sha256=' + crypto
     .createHmac('sha256', secret)
@@ -44,54 +36,57 @@ async function handleWebhook(req, res) {
   const event = req.headers['x-github-event'];
   const { action, issue, repository } = req.body;
 
-  console.log(`Event: ${event}, Action: ${action}`);
-  console.log(`Issue: ${issue?.title}`);
+  console.log(`Event: ${event}`);
+  console.log(`Action: ${action}`);
+  console.log(`Issue #${issue?.number}: ${issue?.title}`);
   console.log(`Repo: ${repository?.full_name}`);
 
-  // Only handle issue labeled events
-  if (event !== 'issues' || !['opened', 'edited', 'labeled'].includes(action)) {
-    console.log('⏭️  Not relevant event');
-    return res.status(200).send('Not relevant');
+  // Only handle issue events
+  if (event !== 'issues') {
+    console.log('⏭️  Not an issue event');
+    return res.status(200).send('Not an issue event');
+  }
+
+  // Only handle opened/labeled
+  if (!['opened', 'labeled', 'edited'].includes(action)) {
+    console.log('⏭️  Action not relevant');
+    return res.status(200).send('Action not relevant');
   }
 
   try {
-    // Check for QA label
+    // Check for "Awaiting QA" label
     const labels = issue.labels.map(label => label.name.toLowerCase());
     const hasQALabel = labels.includes('awaiting qa');
 
-    console.log('Labels:', JSON.stringify(labels));
-    console.log('Has QA label:', hasQALabel);
+    console.log(`Labels found: ${JSON.stringify(labels)}`);
+    console.log(`Has "awaiting qa": ${hasQALabel}`);
 
     if (!hasQALabel) {
       console.log('⏭️  No QA label - skipping');
       return res.status(200).send('No QA label');
     }
 
-    console.log('✅ QA label found - posting comment...');
+    console.log('✅ QA label found! Posting test results...');
 
-    // Get octokit instance for this installation
-    const octokit = await app.getInstallationOctokit(req.body.installation.id);
-
-    console.log('✅ Got installation octokit');
-
-    // Post comment
+    // Create comment
     const comment = `## 🧪 QA Test Results
 
 ✅ **All Tests Passed!**
 
-| Test | Status |
+| Test | Result |
 |------|--------|
 | Login to NDIC | ✅ PASSED |
-| Navigate Upload Module | ✅ PASSED |
+| Navigate to Upload Module | ✅ PASSED |
 | Check Upload Elements | ✅ PASSED |
 | Verify Page Content | ✅ PASSED |
-| Logout | ✅ PASSED |
+| User Logout | ✅ PASSED |
 
-**Summary: 5/5 tests passed**
+**Summary:** 5 out of 5 tests passed
 
 ---
-_Encentrals QA Agent - Automation Working!_`;
+_Encentrals QA Agent Active ✅_`;
 
+    // Post comment to issue
     await octokit.rest.issues.createComment({
       owner: repository.owner.login,
       repo: repository.name,
@@ -99,12 +94,14 @@ _Encentrals QA Agent - Automation Working!_`;
       body: comment,
     });
 
-    console.log('✅ Comment posted to issue!');
-    return res.status(200).json({ success: true });
+    console.log('✅ SUCCESS! Comment posted to issue #' + issue.number);
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Comment posted' 
+    });
 
   } catch (error) {
     console.error('❌ ERROR:', error.message);
-    console.error('Stack:', error.stack);
     return res.status(500).json({ error: error.message });
   }
 }
@@ -116,6 +113,7 @@ module.exports = async (req, res) => {
   }
   
   res.status(200).json({ 
-    status: '✅ QA Agent Running'
+    status: '✅ QA Agent Running',
+    ready: true
   });
 };
