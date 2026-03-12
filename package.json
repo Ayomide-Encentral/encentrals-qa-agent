@@ -1,6 +1,8 @@
 {
+  "name": "encentrals-qa-agent",
+  "version": "1.0.0",
   "dependencies": {
-    "@octokit/app": "^13.1.0",
+    "octokit": "^2.1.0",
     "dotenv": "^16.0.0"
   }
 }
